@@ -1,0 +1,495 @@
+---
+title: "Reproducible Science in R and Figures: Analysis of PalmerPenguins dataset"
+output: 
+     html_document:
+        toc: true
+        code_folding: hide
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.align = 'center')
+
+#load necessary libraries 
+library(tidyverse)
+library(palmerpenguins)
+library(janitor)
+library(here)
+library(dplyr)
+library(ggplot2)
+library(car) 
+library(knitr)
+library(MASS)
+library(kableExtra)
+library(ggsignif)  
+library(svglite)
+
+
+```
+
+## QUESTION 01: Data Visualisation for Science Communication
+
+### a) Provide your figure here:
+
+```{r bad figure code, echo=FALSE, warning=FALSE}
+
+
+# Create a bad figure that badly communicates the dataset
+# Load necessary libraries
+library(ggplot2)
+
+# Create the scatter plot
+ggplot(penguins, aes(x = bill_length_mm, y = bill_depth_mm, colour = species, shape = species, size = species, alpha = species)) +
+  geom_point() +  
+  labs(
+    title = "bill_depth_mm vs bill_length_mm", 
+    x = "bill_length_mm", 
+    y = "bill_depth_mm"
+  ) +
+  scale_colour_manual(
+    name = NULL,  # Remove the 'species' title from colour legend
+    values = c("Adelie" = "gray70", 
+               "Chinstrap" = "red", 
+               "Gentoo" = "gray80") # Manually specify colour for each species 
+  ) +
+  scale_shape_manual(
+    name = NULL, 
+    values = c("Adelie" = 16,   
+               "Chinstrap" = 16, 
+               "Gentoo" = 15)   # Manually specify shape for each species 
+  ) +
+  scale_alpha_manual(
+    name = NULL,  
+    values = c("Adelie" = 1,    
+               "Chinstrap" = 0.3, 
+               "Gentoo" = 1)     # Manually specify transparency for each species 
+  ) +
+  scale_size_manual(
+    name = NULL,  
+    values = c("Adelie" = 3,  
+               "Chinstrap" = 7, 
+               "Gentoo" = 7)    
+  ) +
+  scale_x_reverse() +  # Reverse the x-axis so larger bill lengths appear on the left
+  coord_fixed(ratio = 10) +  # Aspect ratio of 10:1 (y-axis is 10x taller than x-axis)
+  theme(
+    plot.title = element_text(
+      hjust = 1,               
+      face = "plain",          
+      size = 15,               
+      family = "Brush Script MT",  # Set the title to a cursive script
+      color = "grey"          
+    ),
+    axis.text.y = element_blank(),  # Remove y-axis numbers
+    axis.ticks.y = element_blank(), # Remove y-axis ticks
+    axis.line = element_line(color = "black"), # Ensure axis lines are visible
+    legend.title = element_blank()  # Remove legend title
+  )
+
+
+
+```
+
+### b) Write about how your design choices mislead the reader about the underlying data (100-300 words).
+
+The text elements of this plot are designed to confuse the viewer. The title is off-centered, a pale grey and cursive which is difficult to read and easily overlooked by the reader. Axis labels reflect the column names and have not been formatted with spaces to make them visually presentable. There is no legend title and it may not be clear to the reader that the key shows three different species of penguin (ambiguity about what the data actually is). The axes layout is designed to be misleading: there are no axes ticks or labels on the y axis so the reader cannot infer quantitative values/the scale for bill depth. Additionally, the X-axis scale has been reversed, which encourages the reader to draw incorrect conclusions - it appears from this plot that there is a negative correlation between bill length and depth. The use of colour makes this plot misleading - grey Adelie and Gentoo data points do not stand out from the grey background. Similar monochromatic shades of grey are difficult to distinguish between, especially for colour-blind individuals [@ledolter2020]. Red colour use for Chinstrap adds further confusion by emphasising this species and suggesting it should stand out (when in fact it does not). Scaling choices also mislead the reader - a fixed aspect ratio means the plot is elongated in the vertical direction, giving the impression of data points being clustered close together. Plot points are variable in size (Adelie is smaller), and shape (Gentoo is square), which makes it harder to compare inter-species trends. Overlapping or "stacked" data points can obscure information [@baker2016]. In this plot, points are scaled in such a way that they are overlapping, making any one individual hard to distinguish and it difficult to identify trends or outliers. This is exacerbated by increasing the transparency of Chinstrap datapoints, where overlaid points are impossible to distinguish.
+
+------------------------------------------------------------------------
+
+## QUESTION 2: Data Pipeline
+
+------------------------------------------------------------------------
+
+### Introduction
+
+This project uses the PalmerPenguins dataset to explore data for morphological traits in penguins and investigate how they vary across three species: Adelie, Chinstrap, and Gentoo. Prior to analysis, raw data is cleaned to standardize column names and handle issues such as missing values.
+
+##### Cleaning the data
+
+```{r Assessment of the data, include = FALSE, warning = FALSE, message = FALSE}
+
+
+#confirm correct working directory
+here()
+
+#create folder named databank to store data
+dir.create("databank")
+
+#preserve raw data by saving as a .csv file in 'databank' named 'penguins_raw'
+write.csv(penguins_raw, "databank/penguins_raw.csv", row.names = FALSE) 
+
+#view the raw data. This allows assessment of whether a data cleaning step is needed.
+invisible(head(penguins_raw))
+colnames(penguins_raw)
+
+#assessment reveals empty rows (adult not sampled) and 'messy' column names (no standardised formatting). I have chosen to display output only for column names here for clarity.
+
+```
+
+```{r Cleaning the data, warning = FALSE}
+
+#create a folder to store functions called 'functions'
+dir.create("functionsbank")
+
+#See contents of this folder for function details. Code is contained in an r file named 'cleaningfunction'. The function is called 'cleaning'. The function cleans column names, removes empty rows and columns, deletes columns with names starting with 'delta' and removes the 'comments' column.
+
+#load the r file named 'cleaningfunction' (which contains the code for cleaning function) into this r markdown file
+
+source("functionsbank/cleaningfunction.R")
+
+#apply cleaning function to 'penguins_raw' data, and name resulting cleaned dataset 'clean_penguins'
+
+clean_penguins <- cleaning(penguins_raw)
+
+#verify the data has been cleaned
+colnames(clean_penguins)
+
+#preserve clean data by saving as a .csv file in 'databank' named 'clean_penguins'
+write.csv(clean_penguins, "databank/clean_penguins.csv", row.names = FALSE)
+
+
+
+```
+
+##### Exploring the data
+
+Figure 1 is an exploratory figure that allows data to be visualised. This project investigates the continuous variable culmen depth with respect to the categorical variable species. Figure 1 demonstrates a clear visual difference in culmen depth between different species. Individual data points are overlaid with jitter for clearer visualisation. Patterns in the distribution shown by this exploratory figure allow a relevant hypothesis to be formed.
+
+```{r Data Exploration, warning = FALSE, message = FALSE, fig.cap="Figure 1: Violin plot showing the distribution of culmen depth for each penguin species."}
+
+# I am going to be investigating variation in culmen depth between species. 
+
+#create a filtered dataset for culmen_depth by species, remove NAs using a function stored in your 'cleaningfunction' bank
+clean_penguins_filtered_depth <- clean_penguins %>%
+  dplyr::select(species, culmen_depth_mm) %>%
+  remove_NA()
+
+#verify NAs are removed
+print(paste("Number of rows:", nrow(clean_penguins_filtered_depth)))
+print(paste("Number of missing values:", sum(is.na(clean_penguins_filtered_depth))))
+
+#create exploratory plot to display  - violin plot
+
+#setting seed = 0 for true reproducibility
+random_seed = 0
+
+#load the r file named 'create_exploratory_violin_plot' (which contains the code for function to create plot) into this r markdown file
+source("functionsbank/create_exploratory_violin_plot.R")
+
+#create plot using function
+exploratory_violin_plot <- create_exploratory_violin_plot(data = clean_penguins_filtered_depth)
+
+#display the plot
+exploratory_violin_plot
+
+#create folder to save figures in called 'figures'.
+dir.create("figures")
+
+#load the r file named 'function' (which contains the code for 'save' function) into this r markdown file
+source("functionsbank/savefunction.R")
+
+#use 'save' function to save figure in the 'figures' file as an svg
+save_plot_svg(exploratory_violin_plot, filename = "figures/exploratory_violin_plot.svg", size = 15, scaling = 1)
+
+
+```
+
+### Hypothesis
+
+::: hypothesis
+::: {style="border: 2px solid #000; padding-top: 15px; padding-right: 10px; padding-bottom: 2px; padding-left: 10px; background-color: #f9f9f9; border-radius: 5px; text-align: left; font-size: 1.2em;"}
+**H**<sub>0</sub>: There is no significant difference in mean culmen length (mm) between species\
+**H**<sub>A</sub>: At least one species has a mean culmen length (mm) that is significantly different from the others
+:::
+:::
+
+### Statistical Methods
+
+A linear model is fitted to the data to assess the relationship between species and culmen depth. A one-way ANOVA is used with a linear model to determine whether differences in culmen depth between species are statistically significant.
+
+##### Fitting a linear model and checking assumptions
+
+For a linear model to be valid, data must meet statistical assumptions. The assumption of normally distributed residuals can be checked using the Shapiro-Wilk test for normality and the assumption of homoscedasticity can be checked using Levene's test. The output of Levene's test indicates that the assumption of homoscedasticity is met for the raw data. However, the output of the Shapiro-Wilk test indicates that the assumption of normality is violated for the raw data, therefore a transformation is required.
+
+```{r fitting a linear model}
+
+#fit a linear model for the ANOVA
+linear_model <- lm(culmen_depth_mm ~ species, data = clean_penguins_filtered_depth)
+
+#generate a summary of linear model coefficients - I have chosen not to display the summary output here for clarity.
+linear_model_summary <- summary(linear_model)
+
+# Check whether the assumptions of the linear model are met using diagnostic checks
+
+# Statistical diagnostic checks:
+
+#Shapiro-Wilk test for normality of residuals
+shapiro_result <- shapiro.test(residuals(linear_model))
+
+#Levene's test for homoscedasticity
+levene_result <- leveneTest(culmen_depth_mm ~ as.factor(species), data = clean_penguins_filtered_depth)
+
+print(shapiro_result)
+print(levene_result)
+
+
+
+```
+
+##### Transforming the data and re-fitting the linear model
+
+A Box-Cox transformation can be applied to the variable culmen depth to correct for non-normality. After applying the Box-Cox transformation the linear model is re-fitted. The coefficients of the linear model using transformed data are summarised in Table 1. For example, the coefficient for Gentoo indicates a negative difference in culmen depth for the Gentoo species compared to Adelie. Further statistical analysis with ANOVA will more formally assess whether observed differences between species are statistically significant.
+
+```{r Boxcox transformation, include=FALSE, message=FALSE}
+
+# Apply a Box-Cox transformation to the data so the linear model assumption of normality of residuals is met. This function generates an optimal value of lambda to transform the data.
+
+MASS::boxcox(linear_model)  
+
+#extract the optimal lambda (λ) from the boxcox result
+lambda <- MASS::boxcox(linear_model)$x[which.max(MASS::boxcox(linear_model)$y)]
+
+#apply the Box-Cox transformation to the response variable (culmen_depth_mm) based on the optimal lambda
+clean_penguins_filtered_depth$transformed_Depth <- (clean_penguins_filtered_depth$culmen_depth_mm^lambda - 1) / lambda 
+
+#fit a new linear model using the transformed response variable (transformed_Depth)
+linear_model_transformed_depth <- lm(transformed_Depth ~ species, data = clean_penguins_filtered_depth)
+
+
+
+```
+
+```{r Displaying linear model coefficients for transformed data, warning = FALSE}
+
+#generate table displaying summary of linear model coefficients for transformed data
+coefficients_table <- as.data.frame(summary(linear_model_transformed_depth)$coefficients)
+
+#rename columns for clarity
+colnames(coefficients_table) <- c("Estimate", "Std. Error", "t-value", "p-value")
+
+#format numeric values to 3 decimal places and p-values to scientific notation
+coefficients_table$`Estimate` <- round(coefficients_table$`Estimate`, 3)
+coefficients_table$`Std. Error` <- round(coefficients_table$`Std. Error`, 3)
+coefficients_table$`t-value` <- round(coefficients_table$`t-value`, 3)
+coefficients_table$`p-value` <- formatC(coefficients_table$`p-value`, format = "e", digits = 3)
+
+#format table using kable function
+kable(coefficients_table, 
+      caption = '<div style="text-align:center; color:#777777;">Table 1: Summary of linear model coefficients after transformation</div>', 
+      align = c('c', 'c', 'c', 'c')) %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+
+
+
+```
+
+##### Checking assumptions for re-fitted linear model with transformed data
+
+The linear model re-fitted after data transformation must also meet the assumptions. This can be checked using visual plots, for example the Q-Q plot in Figure 2 and the histogram of residuals support a normal distribution. Similarly, equal distribution of points above and below the red line in the residuals vs fitted plot support equal variances. Table 2 further confirms that assumptions are satisfied after the transformation: the output of the Shapiro-Wilk and Levene's test indicate no deviation from the assumption of normality and homoscedasticity respectively.
+
+```{r visual diagnostic checks, fig.cap="Figure 2: Diagnostic plots to assess the assumptions of the linear model."}
+
+# Visual plots to check for normality of residuals
+
+#set up layout for multi-panel figure 
+par(mfrow = c(2, 2), 
+    mar = c(4, 4, 2, 1),  
+    oma = c(4, 0, 0, 0),  
+    plt = c(0.2, 0.9, 0.3, 0.85),  
+    cex.lab = 0.9,       
+    cex.axis = 0.9)       
+
+#Q-Q plot 
+qqnorm(residuals(linear_model_transformed_depth), 
+       main = "Q-Q Plot of Residuals", 
+       xlab = "Theoretical Quantiles", 
+       ylab = "Sample Quantiles", 
+       cex.main = 1.0)  
+qqline(residuals(linear_model_transformed_depth), col = "red", lwd = 2) 
+
+#histogram of residuals 
+hist(residuals(linear_model_transformed_depth), 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     cex.main = 1.0, 
+     cex.lab = 0.9, 
+     cex.axis = 0.9)
+
+#residuals vs Fitted plot 
+plot(fitted(linear_model_transformed_depth), residuals(linear_model_transformed_depth), 
+     main = "Residuals vs Fitted Plot", 
+     xlab = "Fitted Values", 
+     ylab = "Residuals", 
+     cex.main = 1.0, 
+     cex.lab = 0.9, 
+     cex.axis = 0.9)
+abline(h = 0, col = "red", lwd = 2) 
+
+par(mfrow = c(1, 1))  
+
+
+```
+
+```{r, statistical diagnostic checks}
+
+#Levene's test for homoscedasticity
+levene_result_transformed <- leveneTest(transformed_Depth ~ as.factor(species), data = clean_penguins_filtered_depth)
+
+#Shapiro-Wilk test for normality of residuals
+shapiro_result_transformed2 <- shapiro.test(residuals(linear_model_transformed_depth))
+
+# Produce table displaying output of diagnostic tests
+
+#extract output from Shapiro-Wilk test
+shapiro_table <- data.frame(
+  Test = "Shapiro-Wilk",
+  Statistic = round(shapiro_result_transformed2$statistic, 3),
+  P_Value = formatC(shapiro_result_transformed2$p.value, format = "f", digits = 3))
+
+#rename column names for clarity
+colnames(shapiro_table) <- c("Test", "Statistic", "P-Value")
+
+#extract output from Levene's test
+levene_table <- data.frame(
+  Test = "Levene's Test",
+  Statistic = round(levene_result_transformed$`F value`[1], 3),
+  P_Value = formatC(levene_result_transformed$`Pr(>F)`[1], format = "f", digits = 3))
+
+#rename column names for clarity
+colnames(levene_table) <- c("Test", "Statistic", "P-Value")
+
+#combine both test outputs into one table
+combined_table <- rbind(shapiro_table, levene_table)
+
+#remove extra row names for clarity
+rownames(combined_table) <- NULL
+
+#format table using kable function
+kable(combined_table, 
+      caption = '<div style="text-align:center; color:#777777;">Table 2: Summary of Shapiro-Wilk Test for Normality and Levene\'s Test for Homoscedasticity</div>', 
+      align = c('l', 'c', 'c')) %>%
+  kable_styling(
+    position = "center", 
+    latex_options = "HOLD_position"
+  )
+
+```
+
+Given that assumptions are met, an ANOVA is performed on the linear model with transformed data.
+
+```{r Statistical test}
+
+#perform the ANOVA test
+ANOVA_test <- aov(linear_model_transformed_depth)
+
+
+
+
+```
+
+### Results & Discussion
+
+##### Results of the ANOVA
+
+Table 3 shows the ANOVA test for the linear model yield a p\<0.05. Therefore there is evidence to reject the null hypothesis of no significant difference in mean culmen length (mm) between species, indicating that mean culmen depth for at least one species differs significantly from the others.
+
+```{r Summary table of ANOVA results}
+
+# Display results of the ANOVA test in a summary table
+
+#extract ANOVA output
+anova_summary <- summary(ANOVA_test)
+
+#convert output into dataframe
+anova_table <- as.data.frame(anova_summary[[1]])
+
+#round numeric columns for clarity
+anova_table$`Sum Sq` <- round(anova_table$`Sum Sq`, 3)
+anova_table$`Mean Sq` <- round(anova_table$`Mean Sq`, 3)
+anova_table$`F value` <- round(anova_table$`F value`, 3)
+
+#format p-value to scientific notation 
+anova_table$`Pr(>F)` <- formatC(anova_table$`Pr(>F)`, format = "e", digits = 3)
+
+#format table using kable function
+kable(anova_table, 
+      caption = '<div style="text-align:center; color:#777777;">Table 3: ANOVA Results for Linear Model</div>', 
+      align = c('c', 'c', 'c', 'c', 'c')) %>%
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
+This result is further explored using Tukey's test for pairwise comparisons, with statistical significance of comparisons between species shown in Figure 3. The comparison between Chinstrap and Adelie species shows no significant difference in mean culmen depth (p\>0.05). In contrast, both the Gentoo-Adelie and Gentoo-Chinstrap comparisons show significant differences (\*\*\* = p\<0.001), with Gentoo having a notably smaller mean culmen depth than both Adelie and Chinstrap species. These findings suggest that while there is a significant overall difference in culmen depth between species, the specific differences lie between Gentoo and the other two species, rather than between Chinstrap and Adelie.
+
+```{r Post hoc analysis, echo=TRUE, results='asis'}
+
+#perform Tukey HSD test
+tukey_results <- TukeyHSD(ANOVA_test)
+
+
+```
+
+```{r Plotting results, warning = FALSE, message = FALSE, fig.cap="Figure 3: Boxplot of culmen depth across penguin species."}
+
+#load the r file named 'create_results_box_plot' (which contains the code for function to create plot) into this r markdown file
+source("functionsbank/create_results_box_plot.R")
+
+#use function to create results plot
+results_box_plot <- create_box_plot(data = clean_penguins_filtered_depth, tukey_results = tukey_results)
+
+#display the plot
+results_box_plot
+
+
+
+# Use 'save' function to save figure in the 'figures' file as an svg
+save_plot_svg(results_box_plot, filename = "figures/results_box_plot.svg", size = 15, scaling = 1)
+
+
+
+```
+
+### Conclusion
+
+Gentoo penguins have a significantly reduced culmen depth compared to Adelie or Chinstrap penguins. This difference may be related to ecological adaptations. For example, feeding on smaller prey items that require finer, more precise beak movements and a shallower beak depth. Future research should investigate additional factors contributing to morphological variation in traits (culmen depth) in Gentoo penguins, including covariates such as environmental variables or age in an ANCOVA. This would provide greater insight into how morphological variation plays a role in the adaptation of these species to their unique habitats.
+
+This project emphasizes the importance of data cleaning and visualization to make accurate conclusions from biological data. Using a pipeline for a reproducible workflow ensures transparency at each stage of analysis.
+
+------------------------------------------------------------------------
+
+## QUESTION 3: Open Science
+
+**a) GitHub**\
+*GitHub link:*
+
+**b) Partner's GitHub**\
+*Partner's GitHub link:* <https://github.com/anonymous240/Reproducible-Science-and-Figures.git>
+
+### c) Reflect on your experience running their code. (300-500 words)
+
+My partner's code had consistent formatting with labels above each line of code, and a single space gap between lines. Commenting using #s helped me understand and run the data pipeline by explaining the function of each line of code. Additionally, chunk labels were useful as they provided structural organisation. Chunk labels also assisted my understanding of the broader function that any one single line of code ultimately contributes to. The pipeline followed a logical structure, progressing from data cleaning to statistical testing and visualization. The use of custom functions stored in a subfolder also increased code clarity by reducing bulkiness. Furthermore, this makes the pipeline more reproducible since functions can be easily called in a different R project whilst retaining their identical formatting and integrity.
+
+My partner's code ran without issue after I had used renv :: restore to install the necessary packages, so I did not need to fix anything. The use of `here("data", ...)` helped me run their data pipeline by setting up the correct file path on my device, meaning I did not need to adjust any directories to get the code to run.
+
+One way my partner's code could be improved is by using `set.seed()` in their jitterplot to increase reproducibility (ensuring datapoints are in the same place each time the `.Rmd` file is knitted). Additionally, my partner could use cross-referencing for figures and tables. This would make their overall report easier to navigate and would increase reproducibility if the same figures were to be referenced in another document. Alternatively, my partner's code assumes that the Box-Cox transformation will always be valid, however there are data where Box-Cox would not apply such as negative data values. The chunk containing the Box-Cox transformation currently uses `warning = FALSE`, which suppresses warnings about such issues, reducing the transparency of the code. Therefore, my partner's code could be improved by removing this label from the chunk header.
+
+I think customizing my partner's figures would be straightforward because their plotting functions are well-documented and #-ed comments were also used in their function script to explain code function. Additionally, the filenames for the output plots `output_filename_svg` are customisable, making it easy to save the plot with a different file name directly from the `.Rmd` file.
+
+### d) Reflect on your own code based on your experience with your partner's code and their review of yours. (300-500 words)
+
+##### What improvements did my partner suggest?
+
+One limitation highlighted by my partner is that the plot aesthetics are embedded within the external `create_results_box_plot.R` function. This makes it harder for my partner to modify the figure, as any changes to the aesthetics require editing the external script rather than simply adjusting parameters directly in the main `.Rmd` file. I agree that their suggestion would enhance flexibility by incorporating optional arguments for plot aesthetics in the `.Rmd` file as it would allow for easier adjustments without needing to alter the underlying function. However, I disagree with the suggestion as I believe that embedding plot aesthetics within the function facilitates the maintenance of a consistent visual style across multiple plots and reduces the risk of inconsistent formatting.
+
+Additionally, my partner suggested I include a `README.md` file in the repository to provide an overview of the project and outline dependencies. I agree with this suggestion: including a `README.md` is considered best practice for collaborative projects and particularly benefits new users by allowing them to quickly understand the project without delving into the full code.
+
+##### What did I learn about writing code for other people?
+
+During this project I learnt that the same/identical code cannot necessarily be transferred and used seamlessly on other projects or devices - there is more to coding than the raw code itself! Setting up a standardized, reproducible project environment is an equally important step to preserve code function. One example I learnt is that the order packages are installed/loaded must be kept the same. Conflicts between the packages `dplyr` and `MASS` due to overlapping function names (`select`) meant that it was essential that `library(dplyr)` was run first in the pipeline or else downstream errors occurred.
+
+Moreover, I learnt the importance of including `row.names = FALSE` when using the function `write.csv()` to write data to a file. This prevents R from adding a row number column to the CSV file each time the `.Rmd` is knitted, preserving the integrity of the original dataframe.
+
+Finally, I learnt the importance of checking that code runs on other people's devices as well as my own. I learnt how GitHub is helpful as it allows my partner access to my code, meaning that troubleshooting can be performed across devices.
+
+### Bibliography
